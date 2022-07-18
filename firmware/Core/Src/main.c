@@ -55,10 +55,12 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 enum MODE mode = MODE_NONE;
-const char *smode[MODE_SZ] = {"None", "Soc On", "USB Debug On"};
+const char *smode[MODE_SZ] = {"0 - None", "1 - SOC On", "2 - USB Debug On"};
 const MODE_CTL mode_ctl[MODE_SZ] = {{.soc = 0, .usbdbg = 0},
                                     {.soc = 1, .usbdbg = 0},
                                     {.soc = 0, .usbdbg = 1}};
+
+void set_mode(enum MODE new_mode);
 
 static int my_strlen(const char *s) {
     int len = 0;
@@ -68,6 +70,15 @@ static int my_strlen(const char *s) {
 
 static void my_puts(const char *s) {
     HAL_UART_Transmit(&huart2, (uint8_t*)s, my_strlen(s), 0xfffff);
+}
+
+void print_help() {
+    my_puts("Select from the following switch modes:\r\n");
+    for (int i = 0; i< MODE_SZ; i++) {
+        my_puts("\t");
+        my_puts(smode[i]);
+        my_puts("\r\n");
+    }
 }
 
 void print_mode() {
@@ -123,8 +134,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   // printf is kinda heavy
-  my_puts("Started\r\n");
-  print_mode();
+  print_help();
 
   /* USER CODE END 2 */
 
@@ -132,7 +142,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
+      char ch;
+      if (HAL_UART_Receive (&huart2, &ch, 1, 1000) == HAL_OK) {
+          switch (ch) {
+              case '0':
+              case '1':
+              case '2':
+                  set_mode(ch - '0');
+                  break;
+              default:
+                  print_help();
+          }
+      }
+      /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
@@ -294,18 +316,22 @@ static void usbdbg_ctl_off() {
     HAL_GPIO_WritePin(GPIOB, USBDBG_CTL_Pin, GPIO_PIN_RESET);
 }
 
-void next_mode() {
-    mode++;
-    mode %= MODE_SZ;
+void set_mode(enum MODE new_mode) {
     // turn both off
     soc_ctl_off();
     usbdbg_ctl_off();
+    mode = new_mode;
+    mode %= MODE_SZ;
     // selectively turn them on depending on the mode
     if (mode_ctl[mode].soc)
         soc_ctl_on();
     if (mode_ctl[mode].usbdbg)
         usbdbg_ctl_on();
     print_mode();
+}
+
+void next_mode() {
+    set_mode(mode + 1);
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
