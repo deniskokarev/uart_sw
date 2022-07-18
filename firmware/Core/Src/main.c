@@ -27,6 +27,17 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+enum MODE {
+    MODE_NONE = 0,
+    MODE_SOC = 1,
+    MODE_USBDBG = 2,
+    MODE_SZ = 3
+};
+
+typedef struct {
+    int soc;
+    int usbdbg;
+} MODE_CTL;
 
 /* USER CODE END PTD */
 
@@ -43,6 +54,27 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+enum MODE mode = MODE_NONE;
+const char *smode[MODE_SZ] = {"None", "Soc On", "USB Debug On"};
+const MODE_CTL mode_ctl[MODE_SZ] = {{.soc = 0, .usbdbg = 0},
+                                    {.soc = 1, .usbdbg = 0},
+                                    {.soc = 0, .usbdbg = 1}};
+
+static int my_strlen(const char *s) {
+    int len = 0;
+    for (const char *p = s; *p; p++, len++);
+    return len;
+}
+
+static void my_puts(const char *s) {
+    HAL_UART_Transmit(&huart2, (uint8_t*)s, my_strlen(s), 0xfffff);
+}
+
+void print_mode() {
+    my_puts("Mode: ");
+    my_puts(smode[mode]);
+    my_puts("\r\n");
+}
 
 /* USER CODE END PV */
 
@@ -89,6 +121,10 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  // printf is kinda heavy
+  my_puts("Started\r\n");
+  print_mode();
 
   /* USER CODE END 2 */
 
@@ -237,6 +273,46 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+static void soc_ctl_on() {
+    HAL_GPIO_WritePin(GPIOA, SOC_CTL_Pin, GPIO_PIN_SET);
+    // DEBUG
+    HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
+}
+
+static void soc_ctl_off() {
+    HAL_GPIO_WritePin(GPIOA, SOC_CTL_Pin, GPIO_PIN_RESET);
+    // DEBUG
+    HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
+}
+
+static void usbdbg_ctl_on() {
+    HAL_GPIO_WritePin(GPIOB, USBDBG_CTL_Pin, GPIO_PIN_SET);
+}
+
+static void usbdbg_ctl_off() {
+    HAL_GPIO_WritePin(GPIOB, USBDBG_CTL_Pin, GPIO_PIN_RESET);
+}
+
+void next_mode() {
+    mode++;
+    mode %= MODE_SZ;
+    // turn both off
+    soc_ctl_off();
+    usbdbg_ctl_off();
+    // selectively turn them on depending on the mode
+    if (mode_ctl[mode].soc)
+        soc_ctl_on();
+    if (mode_ctl[mode].usbdbg)
+        usbdbg_ctl_on();
+    print_mode();
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    if (GPIO_Pin == B1_Pin || GPIO_Pin == BUTTON_Pin) {
+        next_mode();
+    }
+}
 
 /* USER CODE END 4 */
 
