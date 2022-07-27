@@ -19,25 +19,16 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "usbd_cdc_if.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-enum MODE {
-    MODE_NONE = 0,
-    MODE_SOC = 1,
-    MODE_USBDBG = 2,
-    MODE_SZ = 3
-};
-
-typedef struct {
-    int soc;
-    int usbdbg;
-} MODE_CTL;
 
 /* USER CODE END PTD */
 
@@ -51,48 +42,13 @@ typedef struct {
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-enum MODE mode = MODE_NONE;
-const char *smode[MODE_SZ] = {"0 - None", "1 - SOC On", "2 - USB Debug On"};
-const MODE_CTL mode_ctl[MODE_SZ] = {{.soc = 0, .usbdbg = 0},
-                                    {.soc = 1, .usbdbg = 0},
-                                    {.soc = 0, .usbdbg = 1}};
-
-void set_mode(enum MODE new_mode);
-
-static int my_strlen(const char *s) {
-    int len = 0;
-    for (const char *p = s; *p; p++, len++);
-    return len;
-}
-
-static void my_puts(const char *s) {
-    HAL_UART_Transmit(&huart2, (uint8_t*)s, my_strlen(s), 0xfffff);
-}
-
-void print_help() {
-    my_puts("Select from the following switch modes:\r\n");
-    for (int i = 0; i< MODE_SZ; i++) {
-        my_puts("\t");
-        my_puts(smode[i]);
-        my_puts("\r\n");
-    }
-}
-
-void print_mode() {
-    my_puts("Mode: ");
-    my_puts(smode[mode]);
-    my_puts("\r\n");
-}
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -130,11 +86,8 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-
-  // printf is kinda heavy
-  print_help();
 
   /* USER CODE END 2 */
 
@@ -142,20 +95,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      char ch;
-      if (HAL_UART_Receive (&huart2, &ch, 1, 1000) == HAL_OK) {
-          switch (ch) {
-              case '0':
-              case '1':
-              case '2':
-                  set_mode(ch - '0');
-                  break;
-              default:
-                  print_help();
-          }
-      }
-      /* USER CODE END WHILE */
-
+    /* USER CODE END WHILE */
+      CDC_Transmit_FS("hello\r\n", 7);
+      HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -169,23 +111,14 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-  /** Configure the main internal regulator output voltage
-  */
-  __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
-  RCC_OscInitStruct.PLL.PLLQ = 7;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48;
+  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -193,49 +126,22 @@ void SystemClock_Config(void)
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+                              |RCC_CLOCKTYPE_PCLK1;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI48;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
-}
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
+  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
 
-/**
-  * @brief USART2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART2_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART2_Init 0 */
-
-  /* USER CODE END USART2_Init 0 */
-
-  /* USER CODE BEGIN USART2_Init 1 */
-
-  /* USER CODE END USART2_Init 1 */
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USART2_Init 2 */
-
-  /* USER CODE END USART2_Init 2 */
-
 }
 
 /**
@@ -248,36 +154,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LD2_Pin|SOC_CTL_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, USBDBG_CTL_Pin|SOC_CTL_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(USBDBG_CTL_GPIO_Port, USBDBG_CTL_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : LD2_Pin SOC_CTL_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin|SOC_CTL_Pin;
+  /*Configure GPIO pins : USBDBG_CTL_Pin SOC_CTL_Pin */
+  GPIO_InitStruct.Pin = USBDBG_CTL_Pin|SOC_CTL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : USBDBG_CTL_Pin */
-  GPIO_InitStruct.Pin = USBDBG_CTL_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(USBDBG_CTL_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BUTTON_Pin */
   GPIO_InitStruct.Pin = BUTTON_Pin;
@@ -285,60 +172,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(BUTTON_GPIO_Port, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
-
 }
 
 /* USER CODE BEGIN 4 */
-
-static void soc_ctl_on() {
-    HAL_GPIO_WritePin(GPIOA, SOC_CTL_Pin, GPIO_PIN_SET);
-    // DEBUG
-    HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
-}
-
-static void soc_ctl_off() {
-    HAL_GPIO_WritePin(GPIOA, SOC_CTL_Pin, GPIO_PIN_RESET);
-    // DEBUG
-    HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
-}
-
-static void usbdbg_ctl_on() {
-    HAL_GPIO_WritePin(GPIOB, USBDBG_CTL_Pin, GPIO_PIN_SET);
-}
-
-static void usbdbg_ctl_off() {
-    HAL_GPIO_WritePin(GPIOB, USBDBG_CTL_Pin, GPIO_PIN_RESET);
-}
-
-void set_mode(enum MODE new_mode) {
-    // turn both off
-    soc_ctl_off();
-    usbdbg_ctl_off();
-    mode = new_mode;
-    mode %= MODE_SZ;
-    // selectively turn them on depending on the mode
-    if (mode_ctl[mode].soc)
-        soc_ctl_on();
-    if (mode_ctl[mode].usbdbg)
-        usbdbg_ctl_on();
-    print_mode();
-}
-
-void next_mode() {
-    set_mode(mode + 1);
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    if (GPIO_Pin == B1_Pin || GPIO_Pin == BUTTON_Pin) {
-        next_mode();
-    }
-}
 
 /* USER CODE END 4 */
 
