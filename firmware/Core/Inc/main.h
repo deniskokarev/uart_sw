@@ -62,6 +62,7 @@ void Error_Handler(void);
 #define USBDBG_CTL_GPIO_Port GPIOA
 #define BUTTON_Pin GPIO_PIN_1
 #define BUTTON_GPIO_Port GPIOA
+#define BUTTON_EXTI_IRQn EXTI0_1_IRQn
 #define SOC_CTL_Pin GPIO_PIN_2
 #define SOC_CTL_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
