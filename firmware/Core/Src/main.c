@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usbd_cdc_if.h"
+#include "modes.h"
 
 /* USER CODE END Includes */
 
@@ -95,8 +96,20 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      CDC_Transmit_FS("hello\r\n", 7);
-      HAL_Delay(1000);
+      // keep polling input_ch populated by usb reader
+      if (input_ch != 0) {
+          switch (input_ch) {
+              case '0':
+              case '1':
+              case '2':
+                  set_mode(input_ch - '0');
+                  break;
+              default:
+                  print_help();
+          }
+          input_ch = 0;
+      }
+      HAL_Delay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -177,7 +190,11 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    if (GPIO_Pin == BUTTON_Pin) {
+        next_mode();
+    }
+}
 /* USER CODE END 4 */
 
 /**
