@@ -5,7 +5,7 @@
 #include "modes.h"
 #include "usbd_cdc_if.h"
 
-char input_ch = 0;
+volatile char input_ch = 0;
 
 enum MODE mode = MODE_NONE;
 
@@ -27,6 +27,7 @@ static int my_strlen(const char *s) {
     return len;
 }
 
+// cannot print from interrupt handler
 static void my_puts(const char *s) {
     int rc;
     do {
@@ -65,6 +66,7 @@ static void usbdbg_ctl_off() {
     HAL_GPIO_WritePin(GPIOA, USBDBG_CTL_Pin, GPIO_PIN_RESET);
 }
 
+// use only from main thread, not from interrupt
 void set_mode(enum MODE new_mode) {
     // turn both off
     soc_ctl_off();
@@ -80,5 +82,6 @@ void set_mode(enum MODE new_mode) {
 }
 
 void next_mode() {
-    set_mode(mode + 1);
+    mode = (mode + 1) % MODE_SZ;
+    input_ch = '0' + mode; // will become set_mode() in main thread
 }

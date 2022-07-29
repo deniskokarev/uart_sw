@@ -5,7 +5,7 @@
 #ifndef FIRMWARE_MODES_H
 #define FIRMWARE_MODES_H
 
-extern char input_ch;
+extern volatile char input_ch;
 
 enum MODE {
     MODE_NONE = 0,
