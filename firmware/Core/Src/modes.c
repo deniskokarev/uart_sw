@@ -7,6 +7,8 @@
 
 volatile char input_ch = 0;
 
+volatile int8_t cdcConnected = 0;
+
 enum MODE mode = MODE_NONE;
 
 typedef struct {
@@ -29,10 +31,12 @@ static int my_strlen(const char *s) {
 
 // cannot print from interrupt handler
 static void my_puts(const char *s) {
-    int rc;
-    do {
-        rc = CDC_Transmit_FS((uint8_t *) s, my_strlen(s));
-    } while (rc == USBD_BUSY);
+    if (cdcConnected) {
+        int rc;
+        do {
+            rc = CDC_Transmit_FS((uint8_t *) s, my_strlen(s));
+        } while (rc == USBD_BUSY);
+    }
 }
 
 void print_help() {

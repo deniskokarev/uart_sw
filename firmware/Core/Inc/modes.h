@@ -4,8 +4,11 @@
 
 #ifndef FIRMWARE_MODES_H
 #define FIRMWARE_MODES_H
+#include <stdint.h>
 
 extern volatile char input_ch;
+
+extern volatile int8_t cdcConnected;
 
 enum MODE {
     MODE_NONE = 0,
