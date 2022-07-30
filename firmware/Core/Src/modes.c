@@ -23,35 +23,54 @@ const MODE_CTL mode_ctl[MODE_SZ] = {{.soc = 0, .usbdbg = 0},
 
 void set_mode(enum MODE new_mode);
 
-static int my_strlen(const char *s) {
-    int len = 0;
-    for (const char *p = s; *p; p++, len++);
-    return len;
-}
+/**
+ * Something is wrong with subsequent CDC_Transmit_FS()s.
+ * Works fine when buffing multiple lines in one transmission.
+ */
+#define OBUF_SZ     127
+static char obuf[OBUF_SZ + 1];
 
 // cannot print from interrupt handler
-static void my_puts(const char *s) {
+static void usb_transmit(const char *s, int len) {
     if (cdcConnected) {
-        int rc;
-        do {
-            rc = CDC_Transmit_FS((uint8_t *) s, my_strlen(s));
-        } while (rc == USBD_BUSY);
+        CDC_Transmit_FS((uint8_t *) s, len);
     }
+}
+
+#define min(A,B) ((A<B)?A:B)
+#define max(A,B) ((A>B)?A:B)
+
+static char *str_append(char *dst, const char *src, int *rem) {
+    int l = strlen(src);
+    strncat(dst, src, *rem);
+    char *r = dst + min(l, *rem);
+    *rem = max(*rem - l, 0);
+    return r;
 }
 
 void print_help() {
-    my_puts("Select from the following switch modes:\r\n");
+    char *p = obuf;
+    int rem = OBUF_SZ;
+    *p = 0;
+
+    p = str_append(p, "Select from the following switch modes:\r\n", &rem);
     for (int i = 0; i< MODE_SZ; i++) {
-        my_puts("\t");
-        my_puts(smode[i]);
-        my_puts("\r\n");
+        p = str_append(p, "\t", &rem);
+        p = str_append(p, smode[i], &rem);
+        p = str_append(p, "\r\n", &rem);
     }
+    usb_transmit(obuf, p - obuf);
 }
 
 static void print_mode() {
-    my_puts("Mode: ");
-    my_puts(smode[mode]);
-    my_puts("\r\n");
+    char *p = obuf;
+    int rem = OBUF_SZ;
+    *p = 0;
+
+    p = str_append(p, "Mode: ", &rem);
+    p = str_append(p, smode[mode], &rem);
+    p = str_append(p, "\r\n", &rem);
+    usb_transmit(obuf, p - obuf);
 }
 
 static void soc_ctl_on() {
@@ -87,5 +106,6 @@ void set_mode(enum MODE new_mode) {
 
 void next_mode() {
     mode = (mode + 1) % MODE_SZ;
-    input_ch = '0' + mode; // will become set_mode() in main thread
+    // posting the input char to main thread for set_mode() there
+    input_ch = '0' + mode;
 }
