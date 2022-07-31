@@ -4,6 +4,9 @@ The template created with Cube MX. The code is developed using CLion.
 
 You can tweak firmware.ioc in Cube MX and regenerate the code. Then you can continue development in CLion.
 
+Current pins assignment:
+![CubeMX pins](./CubeMX_Pins.png "CubeMX Pins")
+
 # Build
 Download and install ARM toolchain: https://developer.arm.com
 

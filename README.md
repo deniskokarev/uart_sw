@@ -6,6 +6,9 @@ There are 3 operation modes when the corresponding pins are connected:
 - 1 SOC: (2 <-> 3) (5 <-> 6)
 - 2 DBG: (2 <-> 1) (5 <-> 4) 
 
+The device is based on STM32 microcontroller. DipTrace was used for hardware schematics and layout.
+CubeMX used for USB CDC application template generaion. CLion for the rest of firmware development.
+
 ---------------------
 ![Complete Device](./CompleteDevice.jpg "Complete Device")
 ---------------------
