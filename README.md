@@ -5,7 +5,10 @@ There are 3 operation modes when the corresponding pins are connected:
 - 0 Off: neither pins connected
 - 1 SOC: (2 <-> 3) (5 <-> 6)
 - 2 DBG: (2 <-> 1) (5 <-> 4) 
+
+---------------------
 ![Complete Device](./CompleteDevice.jpg "Complete Device")
+---------------------
 
 The modes may be switched either with a button or via serial terminal
 
